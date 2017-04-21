@@ -1,0 +1,214 @@
+<html><head></head><body><div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a>gulp-resolve-dependencies (v2.2.0)</a>
+</h1>
+<h4>Resolve dependency directives in assets (e.g. "@requires" or "//= require" in JavaScript)</h4>
+<div class="apidocSectionDiv"><a href="#apidoc.tableOfContents" id="apidoc.tableOfContents"><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.gulp-resolve-dependencies">module gulp-resolve-dependencies</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.gulp-resolve-dependencies.gulp-resolve-dependencies">
+            function <span class="apidocSignatureSpan"></span>gulp-resolve-dependencies
+            <span class="apidocSignatureSpan">(config)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.gulp-resolve-dependencies" id="apidoc.module.gulp-resolve-dependencies">module gulp-resolve-dependencies</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.gulp-resolve-dependencies.gulp-resolve-dependencies" id="apidoc.element.gulp-resolve-dependencies.gulp-resolve-dependencies">
+        function <span class="apidocSignatureSpan"></span>gulp-resolve-dependencies
+        <span class="apidocSignatureSpan">(config)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function resolveDependencies(config) {
+	var defaults = {
+			pattern: /\* @requires [\s-]*(.*\.js)/g,
+			log: false,
+			ignoreCircularDependencies: false,
+			resolvePath: function(match, targetFile) {
+				return path.join(path.dirname(targetFile.path), match);
+			}
+		},
+		stream,
+		dag = new DAG(),
+		fileCache = [],
+		filesReturned = [],
+		getFiles = function(targetFile) {
+			var pattern = _.clone(config, true).pattern,
+				files = [],
+				content,
+				match,
+				relFilePath,
+				filePath,
+				file,
+				dependencies;
+
+			// Skip if already added to dependencies
+			if (_.indexOf(fileCache, targetFile.path) !== -1) {
+				return false;
+			} else {
+				fileCache.push(targetFile.path);
+			}
+
+			content = targetFile.contents.toString('utf8');
+
+			while (match = pattern.exec(content)) {
+				filePath = config.resolvePath(match[1], targetFile);
+
+				// Check for circular dependencies
+				try {
+					dag.addEdge(targetFile.path, filePath);
+				} catch (e) {
+					// Emit error or just continue
+					if (!config.ignoreCircularDependencies) {
+						stream.emit('error', new Error(PLUGIN_NAME + ': Circular dependency between "' + targetFile.path + '" and "' + filePath + '"'));
+					} else {
+						continue;
+					}
+				}
+
+				// Check existence
+				if (!fs.existsSync(filePath)) {
+					stream.emit('error', new Error(PLUGIN_NAME + ': File not found: ' + filePath));
+
+					continue;
+				}
+
+				// Create new file
+				file = new gutil.File({
+					base: targetFile.base,
+					path: filePath,
+					contents: fs.readFileSync(filePath),
+					stat: fs.statSync(filePath)
+				});
+
+				// Get new dependencies
+				while (dependencies = getFiles(file)) {
+					files = files.concat(dependencies);
+				}
+			}
+
+			// Add file itself
+			files.push(targetFile);
+
+			return files;
+		};
+
+	// Set default values
+	config = _.merge(defaults, config);
+
+	// Happy streaming
+	stream = Stream.Transform({
+		objectMode: true
+	});
+
+	stream._transform = function(file, unused, cb) {
+		var files;
+
+		if (file.isNull()) {
+			this.push(file);
+
+			return cb();
+		}
+
+		files = getFiles(file);
+
+		if (!files) {
+			return cb();
+		}
+
+		// Add dependencies and file itself to stream
+		files.forEach(_.bind(function(file) {
+			this.push(file);
+		}, this));
+
+		if (config.log) {
+			filesReturned = filesReturned.concat(files.map(function(file) {
+				return file.path;
+			}));
+		}
+
+		cb();
+	};
+
+	stream._flush = function(cb) {
+		if (config.log) {
+			gutil.log('[' + gutil.colors.green(PLUGIN_NAME) + '] Files returned to stream:', filesReturned);
+		}
+
+		cb();
+	};
+
+	return stream;
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">n/a</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
+</body></html>
